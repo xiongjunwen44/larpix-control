@@ -72,13 +72,74 @@ def scan_threshold(board='pcb-5', chip_idx=0, channel_list=[0,],
                             adc_means[:], adc_rmss[:]] 
     return results
     
-        
+
+def pixel_trim_scan(coarse_scan, board='pcb-5', chip_idx=0,
+        channel_list=[0]):
+    '''Scan through the pixel trim DACs near the threshold for each
+    channel, given the results of the coarse scan (scan_threshold).
+
+    '''
+    #TODO channel_list might contain channels not in coarse_scan
+    controller = quickcontroller(board)
+    chip = controller.chips[chip_idx]
+    results = {}
+    for channel, values in coarse_scan.items():
+        if channel not in channel_list:
+            continue
+        chip.config.disable_channels()
+        chip.config.enable_channels([channel])
+        # Find the noise threshold
+        global_thresholds = values[0]
+        npackets = values[1]
+        for i, npacket in enumerate(npackets):
+            if npacket > 0:
+                last_good_threshold = global_thresholds[i - 1]
+                break
+        chip.config.global_threshold = last_good_threshold
+        controller.write_configuration(chip)
+        # Scan the trim dac below the "initial" value to explore how the
+        # noise changes
+        initial_trim_dac = chip.config.pixel_trim_thresholds[channel]
+        extra_dacs = 5
+        n_packets = []
+        adc_means = []
+        adc_rmss = []
+        for trim_dac in range(initial_trim_dac + extra_dacs):
+            chip.config.pixel_trim_thresholds[channel] = trim_dac
+            controller.write_configuration(chip, channel)
+            if trim_dac == 0:
+                # Flush buffer for first cycle
+                print('clearing buffer')
+                controller.run(1,'clear buffer')
+                time.sleep(1)
+            controller.reads = []
+            # Collect data
+            print('reading')
+            controller.run(1,'scan threshold')
+            print('done reading')
+            # Process data
+            packets = controller.reads[-1]
+            adc_mean = 0
+            adc_rms = 0
+            if len(packets)>0:
+                print('processing packets',len(packets))
+                adcs = [p.dataword for p in packets]
+                adc_mean = sum(adcs)/float(len(adcs))
+                adc_rms = (sum([abs(adc-adc_mean) for adc in adcs])
+                           / float(len(adcs)))
+            n_packets.append(len(packets))
+            adc_means.append(adc_mean)
+            adc_rmss.append(adc_rms)
+        results[channel] = [list(range(initial_trim_dac)), n_packets[:],
+                            adc_means[:], adc_rmss[:]]
+    return results
+
 
 def pulse_chip_channel(controller, chip, channel):
     '''Issue one pulse to specific chip, channel'''
-    chip.config.csa_testpulse_dac_enable[channel] = 0 # Connect
+    chip.config.csa_testpulse_enable[channel] = 0 # Connect
     controller.write_configuration(chip,[42,43,44,45])
-    chip.config.csa_testpulse_dac_enable[channel] = 1 # Disconnect
+    chip.config.csa_testpulse_enable[channel] = 1 # Disconnect
     controller.write_configuration(chip,[42,43,44,45],write_read=0.1)
     return
 
