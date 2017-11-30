@@ -74,12 +74,14 @@ def scan_threshold(board='pcb-5', chip_idx=0, channel_list=[0,],
     
 
 def pixel_trim_scan(coarse_scan, board='pcb-5', chip_idx=0,
-        channel_list=[0]):
+        channel_list=[0], direction='up'):
     '''Scan through the pixel trim DACs near the threshold for each
     channel, given the results of the coarse scan (scan_threshold).
 
     '''
     #TODO channel_list might contain channels not in coarse_scan
+    if direction not in ['up', 'down']:
+        raise ValueError('Bad direction: %s' % direction)
     controller = quickcontroller(board)
     chip = controller.chips[chip_idx]
     results = {}
@@ -104,10 +106,14 @@ def pixel_trim_scan(coarse_scan, board='pcb-5', chip_idx=0,
         n_packets = []
         adc_means = []
         adc_rmss = []
-        for trim_dac in range(initial_trim_dac + extra_dacs):
+        if direction == 'up':
+            trims = list(range(initial_trim_dac + extra_dacs))
+        else:
+            trims = list(range(initial_trim_dac + extra_dacs, -1, -1))
+        for trim_dac in trims:
             chip.config.pixel_trim_thresholds[channel] = trim_dac
             controller.write_configuration(chip, channel)
-            if trim_dac == 0:
+            if trim_dac == trims[0]:
                 # Flush buffer for first cycle
                 print('clearing buffer')
                 controller.run(1,'clear buffer')
