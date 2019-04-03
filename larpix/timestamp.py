@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from functools import total_ordering
 import sys
-from math import fmod
+from math import fmod, ceil, floor
 
 __all__ = ['Timestamp']
 
@@ -12,6 +12,7 @@ if sys.version_info > (3,):
 @total_ordering
 class Timestamp(object):
     '''Class for precision time'''
+    larpix_async_lim = 2**14 #clk cycles
     larpix_clk_freq = long(5e6) #Hz
     larpix_offset_d = long(2**24) #clk cycles
 
@@ -152,12 +153,21 @@ class Timestamp(object):
             pass
         elif cpu_time == ref_time.cpu_time:
             # same serial read but adc time may have rolled over
-            while adj_adc_time < ref_time.adj_adc_time:
-                adj_adc_time += Timestamp.larpix_offset_d
+            n_rollovers = 0
+            if ref_time.adj_adc_time > adj_adc_time:
+                n_rollovers = ceil(max(float(ref_time.adj_adc_time - adj_adc_time) / Timestamp.larpix_offset_d, 0))
+            if (ref_time.adj_adc_time - adj_adc_time) % Timestamp.larpix_offset_d < Timestamp.larpix_async_lim and (ref_time.adj_adc_time - adj_adc_time) % Timestamp.larpix_offset_d > 0:
+                # remove last rollover if we think packet was received out of order
+                n_rollovers -= 1
+            adj_adc_time += Timestamp.larpix_offset_d * n_rollovers
+            #while adj_adc_time < ref_time.adj_adc_time:
+            #    adj_adc_time += Timestamp.larpix_offset_d
         else:
             # new serial read
             # estimate number of clk cycles between reads
             n_clk_cycles = long((cpu_time - ref_time.ns * 1e-9) * Timestamp.larpix_clk_freq)
+            n_rollovers = max(floor((ref_time.adj_adc_time + n_clk_cycles - adj_adc_time) / Timestamp.larpix_offset_d),0)
+            adj_adc_time += Timestamp.larpix_offset_d * n_rollovers
             # add offsets until you are close to the predicted number of clk cycles
             while adj_adc_time - ref_time.adj_adc_time - n_clk_cycles \
                     < -Timestamp.larpix_offset_d / 2:
