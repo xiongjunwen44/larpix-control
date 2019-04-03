@@ -2,7 +2,7 @@
 A module to assist serial data logging and debugging
 '''
 from __future__ import absolute_import
-import os, time, atexit
+import os, time, atexit, gzip
 
 from .dataformatter import default_formatter
 
@@ -22,7 +22,7 @@ class DataLogger(object):
         self.formatter = formatter
         self.bytes_written = 0
         self.buffer = bytearray()
-        self._buffer_flush = 32000 # flush at 32000 byte buffer size
+        self._buffer_flush = 128000 # flush at 128000 byte buffer size
         self._log_initialized = False
         # Has log been initialized?
         if not self._log_initialized:
@@ -35,7 +35,7 @@ class DataLogger(object):
         '''Generate a log file name'''
         log_prefix = 'datalog'
         log_specifier = time.strftime('%Y_%m_%d_%H_%M_%S_%Z')
-        log_postfix = '.dat'
+        log_postfix = '.dat.gz'
         return (log_prefix + '_' + log_specifier + '_' + log_postfix)
 
     def _default_logpath(self):
@@ -78,7 +78,7 @@ class DataLogger(object):
         # Is there data to log?
         if len(self.buffer) == 0: return  # No data
         # Write data to file
-        with open(self.filename,'ab') as log_file:
+        with gzip.open(self.filename,'ab') as log_file:
             log_file.write(self.buffer)
         # Track total bytes written
         self.bytes_written += len(self.buffer)
