@@ -76,7 +76,7 @@ class DataLoader(object):
     def open(self):
         '''Open the log file'''
         if self.is_open(): return
-        self.file = open(self.filename,'rb')
+        self.file = gzip.open(self.filename, 'rb')
         # Check file open format
         byte_chunk = self.file.read(len(self.formatter.file_open_chunk()))
         if not self.formatter.valid_endian(byte_chunk):
