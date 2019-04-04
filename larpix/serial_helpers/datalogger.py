@@ -78,8 +78,13 @@ class DataLogger(object):
         # Is there data to log?
         if len(self.buffer) == 0: return  # No data
         # Write data to file
-        with gzip.open(self.filename,'ab') as log_file:
-            log_file.write(self.buffer)
+        if os.path.splitext(self.filename)[-1] == '.gz':
+            with gzip.open(self.filename,'ab') as log_file:
+                log_file.write(self.buffer)
+        else:
+            with open(self.filename,'ab') as log_file:
+                log_file.write(self.buffer)
+
         # Track total bytes written
         self.bytes_written += len(self.buffer)
         # Clear buffer
