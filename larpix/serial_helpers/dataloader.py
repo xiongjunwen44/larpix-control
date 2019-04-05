@@ -2,7 +2,7 @@
 A module to assist loading serial data logs for debugging
 '''
 from __future__ import absolute_import
-import os
+import os, gzip
 
 from .dataformatter import DataFormatter
 
